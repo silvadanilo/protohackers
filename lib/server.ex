@@ -19,51 +19,76 @@ defmodule Server do
   defp loop_acceptor(socket, module) do
     {:ok, client} = :gen_tcp.accept(socket)
     {:ok, pid} = Task.Supervisor.start_child(Server.TaskSupervisor, fn -> serve(client, module) end)
-    :ok = :gen_tcp.controlling_process(client, pid)
+    :gen_tcp.controlling_process(client, pid)
     loop_acceptor(socket, module)
   end
 
   defp serve(socket, module) do
-    socket
-    |> module.read_line()
-    |> debug_log()
-    |> module.handle()
-    |> write_line(socket)
-
-    serve(socket, module)
+    {:ok, state} = module.init()
+    serve(socket, module, state)
   end
 
-  def write_line({:ok, text}, socket) do
-    Logger.debug("[#{inspect(self())}] Replyin with: #{text}")
+  defp serve(socket, module, state) do
+    new_state =
+      with {:ok, data} <- read_line(socket, module),
+           {:ok, response, new_state} <- module.handle(data, state) do
+      Logger.debug("[#{inspect(self())}] new state: `#{inspect(state)}`")
+      Logger.debug("[#{inspect(self())}] response: `#{inspect(response)}`")
+
+      write_line(socket, response)
+
+      new_state
+    else
+      {:error, error} when error in [:enotconn, :closed] ->
+        exit(:shutdown)
+        state
+
+      {:error, :disconnect, error} ->
+        Logger.warn("[#{inspect(self())}] #{inspect(error)}")
+        Logger.warn("[#{inspect(self())}] closing connection")
+
+        :gen_tcp.close(socket)
+        exit(:shutdown)
+        state
+
+      :error ->
+        :gen_tcp.close(socket)
+        exit(:shutdown)
+        state
+    end
+
+    serve(socket, module, new_state)
+  end
+
+  def read_line(socket, module) do
+    socket
+    |> module.read_line()
+    |> log_received_data()
+  end
+
+  def write_line(_socket, nil), do: :ok
+
+  def write_line(socket, text) do
+    Logger.debug("[#{inspect(self())}] Replyin with: `#{inspect(text)}`")
     :gen_tcp.send(socket, text)
   end
 
-  def write_line({:error, error}, _socket) when error in [:enotconn, :closed] do
-    # The connection was closed, exit politely
-    exit(:shutdown)
-    nil
-  end
-
-  def write_line({:error, :disconnect, error}, _socket) do
-    Logger.warn("[#{inspect(self())}] #{inspect(error)}")
-    Logger.warn("[#{inspect(self())}] closing connection")
-
-    exit(:shutdown)
-    nil
-  end
-
-  defp debug_log({:ok, received}) when is_binary(received), do: {:ok, debug_log(received)}
-  defp debug_log(received) when is_binary(received) do
-    Logger.debug("[#{inspect(self())}] Received: `#{received}`")
+  defp log_received_data({:ok, received}) when is_bitstring(received), do: {:ok, log_received_data(received)}
+  defp log_received_data(received) when is_bitstring(received) do
+    if String.valid?(received) do
+      Logger.debug("[#{inspect(self())}] Received: `#{received}`")
+    else
+      Logger.debug("[#{inspect(self())}] Received: `#{inspect(received)}`")
+    end
     received
   end
 
-  defp debug_log({:error, :closed} = received) do
+  defp log_received_data({:error, :closed} = received) do
     Logger.debug("[#{inspect(self())}] Connection closed")
     received
   end
 
-  defp debug_log(received) do
+  defp log_received_data(received) do
     Logger.error("Received wrong data: `#{inspect(received)}`")
     received
   end

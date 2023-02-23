@@ -3,19 +3,13 @@ defmodule Protohacker.Protocol.PrimeTime do
     Server.accept(port, __MODULE__)
   end
 
-  def handle({:ok, data}) do
-    parse(data)
-  end
+  def init(), do: {:ok, nil}
 
-  def handle(error), do: error
-
-  def serve(socket) do
-    socket
-    |> read_line()
-    |> handle()
-    |> Server.write_line(socket)
-
-    serve(socket)
+  def handle(received_data, state) do
+    case parse(received_data) do
+      {:ok, response} -> {:ok, response, state}
+      error -> error
+    end
   end
 
   def read_line(socket) do
@@ -45,10 +39,6 @@ defmodule Protohacker.Protocol.PrimeTime do
     |> execute()
   end
 
-  defp execute({:error, error, reason}), do: {:error, error, reason}
-  defp execute({:error, error}), do: {:error, :disconnect, error}
-  defp execute({:ok, ""}), do: {:ok, ""}
-
   defp execute({:ok, %{method: "isPrime", number: number}}) when is_number(number) do
     {:ok,
      Jason.encode!(%{
@@ -57,7 +47,9 @@ defmodule Protohacker.Protocol.PrimeTime do
      }) <> "\n"}
   end
 
-  defp execute(_), do: {:error, :disconnect, Jason.encode!(%{method: "isPrime", error: "wrong data"})}
+  defp execute({:ok, _}), do: {:error, :disconnect, Jason.encode!(%{method: "isPrime", error: "wrong data"})}
+
+  defp execute(error), do: error
 
   defp is_valid({:ok, parsed_data}), do: {:ok, parsed_data}
   defp is_valid(error), do: {:error, :disconnect, error}

@@ -1,21 +1,17 @@
 defmodule Protohacker.Protocol.Echo do
+  @moduledoc false
+
+  @timeout 10_000
+
   def accept(port) do
     Server.accept(port, __MODULE__)
   end
 
-  def handle({:ok, data}), do: {:ok, data}
-  def handle(error), do: error
+  def init(), do: {:ok, nil}
 
-  def serve(socket) do
-    socket
-    |> read_line()
-    |> handle()
-    |> Server.write_line(socket)
-
-    serve(socket)
-  end
+  def handle(received_data, state), do: {:ok, received_data, state}
 
   def read_line(socket) do
-    :gen_tcp.recv(socket, 0)
+    :gen_tcp.recv(socket, 0, @timeout)
   end
 end

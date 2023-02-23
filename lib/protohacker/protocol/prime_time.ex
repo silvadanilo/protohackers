@@ -47,7 +47,8 @@ defmodule Protohacker.Protocol.PrimeTime do
      }) <> "\n"}
   end
 
-  defp execute({:ok, _}), do: {:error, :disconnect, Jason.encode!(%{method: "isPrime", error: "wrong data"})}
+  defp execute({:ok, _}),
+    do: {:error, :disconnect, Jason.encode!(%{method: "isPrime", error: "wrong data"})}
 
   defp execute(error), do: error
 

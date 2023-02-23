@@ -8,7 +8,7 @@ defmodule Protohackers.End2End.EchoServerTest do
     assert :gen_tcp.send(socket, "foo") == :ok
     assert :gen_tcp.send(socket, "bar") == :ok
     :gen_tcp.shutdown(socket, :write)
-    assert  {:ok, "foobar"} == :gen_tcp.recv(socket, 0, @timeout)
+    assert {:ok, "foobar"} == :gen_tcp.recv(socket, 0, @timeout)
   end
 
   test "handles multiple concurrent connections" do
@@ -19,7 +19,7 @@ defmodule Protohackers.End2End.EchoServerTest do
           assert :gen_tcp.send(socket, "foo") == :ok
           assert :gen_tcp.send(socket, "bar") == :ok
           :gen_tcp.shutdown(socket, :write)
-          assert  {:ok, "foobar"} == drain(socket, [])
+          assert {:ok, "foobar"} == drain(socket, [])
         end)
       end
 

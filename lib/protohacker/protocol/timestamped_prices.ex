@@ -11,31 +11,26 @@ defmodule Protohacker.Protocol.TimestampedPrices do
     {:ok, Prices.init()}
   end
 
-  def handle(data, state) do
-    execute(data, state)
-  end
-
-  # def handle(error, state), do: error
-
   def read_line(socket) do
-    read_line(socket, "")
-  end
-
-  def read_line(socket, message) do
     :gen_tcp.recv(socket, 9)
   end
 
-  defp execute(<<?I, timestamp::32, price::32>>, state) do
+  def handle(<<?I, timestamp::32-signed-big, price::32-signed-big>>, state) do
     {:ok, nil, Prices.add(state, %{timestamp: timestamp, price: price})}
   end
 
-  defp execute(<<?Q, from::32, to::32>>, state) do
+  def handle(<<?Q, from::32-signed-big, to::32-signed-big>>, state) do
     case Prices.query(state, from, to) do
       nil ->
-        {:ok, <<0::32>>, state}
+        {:ok, <<0::32-signed-big>>, state}
+
       average ->
-        {:ok, <<average::32>>, state}
+        {:ok, <<average::32-signed-big>>, state}
     end
+  end
+
+  def handle(invalid_request, _state) do
+    {:error, :disconnect, "invalid request #{inspect(invalid_request)}"}
   end
 end
 
@@ -45,21 +40,25 @@ defmodule Protohacker.Repository.Prices do
   def init(), do: []
 
   def add(current_state, %{timestamp: timestamp, price: price} = record) do
-    [record | current_state]
+    [{timestamp, price} | current_state]
   end
 
   def query(current_state, from, to) do
     current_state
-    |> Enum.filter(fn %{timestamp: timestamp} -> timestamp >= from and timestamp <= to end)
-    |> Enum.map(fn %{price: price} -> price end)
-    |> mean()
+    |> Stream.filter(fn {timestamp, _} -> timestamp >= from and timestamp <= to end)
+    |> Stream.map(fn {_, price} -> price end)
+    |> Enum.reduce({0, 0}, fn price, {sum, count} -> {sum + price, count + 1} end)
+    |> then(fn
+      {_sum, 0} -> 0
+      {sum, count} -> div(sum, count)
+    end)
   end
 
   @spec mean([number()]) :: float() | nil
   defp mean(list) when is_list(list), do: mean(list, 0, 0)
 
   defp mean([], 0, 0), do: nil
-  defp mean([], t, l), do: t / l |> round()
+  defp mean([], t, l), do: (t / l) |> round()
 
   defp mean([x | xs], t, l) do
     mean(xs, t + x, l + 1)

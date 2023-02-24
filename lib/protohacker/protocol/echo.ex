@@ -7,11 +7,15 @@ defmodule Protohacker.Protocol.Echo do
     Server.accept(port, __MODULE__)
   end
 
-  def init(), do: {:ok, nil}
+  def init(_socket), do: {:ok, nil}
 
   def handle(received_data, state), do: {:ok, received_data, state}
 
   def read_line(socket) do
     :gen_tcp.recv(socket, 0, @timeout)
+  end
+
+  def shutdown(state) do
+    {:ok, state}
   end
 end

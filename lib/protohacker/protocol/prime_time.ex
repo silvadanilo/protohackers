@@ -3,7 +3,7 @@ defmodule Protohacker.Protocol.PrimeTime do
     Server.accept(port, __MODULE__)
   end
 
-  def init(), do: {:ok, nil}
+  def init(_socket), do: {:ok, nil}
 
   def handle(received_data, state) do
     case parse(received_data) do
@@ -28,6 +28,10 @@ defmodule Protohacker.Protocol.PrimeTime do
       error ->
         error
     end
+  end
+
+  def shutdown(state) do
+    {:ok, state}
   end
 
   defp parse(raw_data) do

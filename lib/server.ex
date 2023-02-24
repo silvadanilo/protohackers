@@ -18,13 +18,22 @@ defmodule Server do
 
   defp loop_acceptor(socket, module) do
     {:ok, client} = :gen_tcp.accept(socket)
+
     {:ok, pid} = Task.Supervisor.start_child(Server.TaskSupervisor, fn -> serve(client, module) end)
+
     :gen_tcp.controlling_process(client, pid)
     loop_acceptor(socket, module)
   end
 
   defp serve(socket, module) do
-    {:ok, state} = module.init()
+    state =
+      socket
+      |> module.init()
+      |> case do
+        {:ok, state} -> state
+        {:error, _reason} -> exit(:shutdown)
+      end
+
     serve(socket, module, state)
   end
 
@@ -32,30 +41,31 @@ defmodule Server do
     new_state =
       with {:ok, data} <- read_line(socket, module),
            {:ok, response, new_state} <- module.handle(data, state) do
-      Logger.debug("[#{inspect(self())}] new state: `#{inspect(state)}`")
-      Logger.debug("[#{inspect(self())}] response: `#{inspect(response)}`")
+        Logger.debug("[#{inspect(self())}] new state: `#{inspect(state)}`")
+        Logger.debug("[#{inspect(self())}] response: `#{inspect(response)}`")
 
-      write_line(socket, response)
+        write_line(socket, response)
 
-      new_state
-    else
-      {:error, error} when error in [:enotconn, :closed] ->
-        exit(:shutdown)
-        state
+        new_state
+      else
+        {:error, error} when error in [:enotconn, :closed] ->
+          {:ok, state} = module.shutdown(state)
+          exit(:shutdown)
+          state
 
-      {:error, :disconnect, error} ->
-        Logger.warn("[#{inspect(self())}] #{inspect(error)}")
-        Logger.warn("[#{inspect(self())}] closing connection")
+        {:error, :disconnect, error} ->
+          Logger.warn("[#{inspect(self())}] #{inspect(error)}")
+          Logger.warn("[#{inspect(self())}] closing connection")
 
-        :gen_tcp.close(socket)
-        exit(:shutdown)
-        state
+          :gen_tcp.close(socket)
+          exit(:shutdown)
+          state
 
-      :error ->
-        :gen_tcp.close(socket)
-        exit(:shutdown)
-        state
-    end
+        :error ->
+          :gen_tcp.close(socket)
+          exit(:shutdown)
+          state
+      end
 
     serve(socket, module, new_state)
   end
@@ -73,13 +83,16 @@ defmodule Server do
     :gen_tcp.send(socket, text)
   end
 
-  defp log_received_data({:ok, received}) when is_bitstring(received), do: {:ok, log_received_data(received)}
+  defp log_received_data({:ok, received}) when is_bitstring(received),
+    do: {:ok, log_received_data(received)}
+
   defp log_received_data(received) when is_bitstring(received) do
     if String.valid?(received) do
       Logger.debug("[#{inspect(self())}] Received: `#{received}`")
     else
       Logger.debug("[#{inspect(self())}] Received: `#{inspect(received)}`")
     end
+
     received
   end
 

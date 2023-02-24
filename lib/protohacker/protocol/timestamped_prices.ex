@@ -7,7 +7,7 @@ defmodule Protohacker.Protocol.TimestampedPrices do
     Server.accept(port, __MODULE__)
   end
 
-  def init() do
+  def init(_socket) do
     {:ok, Prices.init()}
   end
 
@@ -31,6 +31,10 @@ defmodule Protohacker.Protocol.TimestampedPrices do
 
   def handle(invalid_request, _state) do
     {:error, :disconnect, "invalid request #{inspect(invalid_request)}"}
+  end
+
+  def shutdown(state) do
+    {:ok, state}
   end
 end
 

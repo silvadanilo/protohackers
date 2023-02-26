@@ -15,6 +15,7 @@ defmodule Protohacker.Application do
       Supervisor.child_spec({Task, fn -> Protocol.PrimeTime.accept(5556) end}, restart: :permanent, id: :prime_server),
       Supervisor.child_spec({Task, fn -> Protocol.TimestampedPrices.accept(5557) end}, restart: :permanent, id: :prices),
       Supervisor.child_spec({Task, fn -> Protocol.BudgetChat.accept(5558) end}, restart: :permanent, id: :budget_chat),
+      Supervisor.child_spec({Task, fn -> Protohacker.MITM.Listener.accept(5560) end}, restart: :permanent, id: :mim),
       Supervisor.child_spec({Protocol.Database, 5559}, restart: :permanent, id: :database)
     ]
 

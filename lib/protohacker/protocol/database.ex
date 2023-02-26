@@ -41,10 +41,10 @@ defmodule Protohacker.Protocol.Database do
   defp handle_packet(data, db) do
     Logger.debug("Received: #{String.trim(data)}")
 
-    if String.contains? data, "=" do
-        handle_insertion(data, db)
+    if String.contains?(data, "=") do
+      handle_insertion(data, db)
     else
-        handle_query(data, db)
+      handle_query(data, db)
     end
   end
 

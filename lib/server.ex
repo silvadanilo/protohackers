@@ -1,4 +1,6 @@
 defmodule Server do
+  @moduledoc false
+
   require Logger
 
   @doc """
